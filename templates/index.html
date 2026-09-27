@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>
+        CIFAR-10 MLP Image Classifier
+    </title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+
+<body>
+
+    <div class="container">
+
+        <div class="card">
+
+            <h1>
+                CIFAR-10 Image Classifier
+            </h1>
+
+            <p class="subtitle">
+                AI-based image classification using
+                a Multilayer Perceptron
+            </p>
+
+
+            <!-- Image Upload Form -->
+            <form
+                id="predictionForm"
+                enctype="multipart/form-data"
+            >
+
+                <div class="upload-area">
+
+                    <input
+                        type="file"
+                        id="imageInput"
+                        name="image"
+                        accept=".png,.jpg,.jpeg"
+                    >
+
+                    <label for="imageInput">
+                        Choose an image
+                    </label>
+
+                    <p>
+                        PNG, JPG or JPEG
+                    </p>
+
+                </div>
+
+
+                <!-- Image Preview -->
+                <div
+                    id="previewContainer"
+                    class="preview-container hidden"
+                >
+
+                    <img
+                        id="previewImage"
+                        alt="Selected image"
+                    >
+
+                </div>
+
+
+                <!-- Predict Button -->
+                <button
+                    type="submit"
+                    id="predictButton"
+                >
+                    Predict Image
+                </button>
+
+            </form>
+
+
+            <!-- Loading Message -->
+            <div
+                id="loading"
+                class="loading hidden"
+            >
+                Classifying image...
+            </div>
+
+
+            <!-- Prediction Result -->
+            <div
+                id="result"
+                class="result hidden"
+            >
+
+                <h2>
+                    Prediction
+                </h2>
+
+
+                <!-- Best Prediction -->
+                <div
+                    id="prediction"
+                    class="prediction"
+                >
+                </div>
+
+
+                <!-- Best Prediction Confidence -->
+                <div
+                    id="confidence"
+                    class="confidence"
+                >
+                </div>
+
+
+                <!-- Top 3 Predictions -->
+                <h3>
+                    Top 3 Predictions
+                </h3>
+
+                <div
+                    id="topPredictions"
+                >
+                </div>
+
+            </div>
+
+
+            <!-- Error Message -->
+            <div
+                id="error"
+                class="error hidden"
+            >
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <script>
+
+        // --------------------------------------------------
+        // Get HTML Elements
+        // --------------------------------------------------
+
+        const imageInput =
+            document.getElementById(
+                "imageInput"
+            );
+
+
+        const previewImage =
+            document.getElementById(
+                "previewImage"
+            );
+
+
+        const previewContainer =
+            document.getElementById(
+                "previewContainer"
+            );
+
+
+        const form =
+            document.getElementById(
+                "predictionForm"
+            );
+
+
+        const result =
+            document.getElementById(
+                "result"
+            );
+
+
+        const error =
+            document.getElementById(
+                "error"
+            );
+
+
+        const loading =
+            document.getElementById(
+                "loading"
+            );
+
+
+        const predictButton =
+            document.getElementById(
+                "predictButton"
+            );
+
+
+        // --------------------------------------------------
+        // Image Preview
+        // --------------------------------------------------
+
+        imageInput.addEventListener(
+            "change",
+            function () {
+
+                const file =
+                    imageInput.files[0];
+
+
+                if (!file) {
+
+                    previewContainer.classList.add(
+                        "hidden"
+                    );
+
+                    return;
+                }
+
+
+                const reader =
+                    new FileReader();
+
+
+                reader.onload =
+                    function (event) {
+
+                        previewImage.src =
+                            event.target.result;
+
+
+                        previewContainer.classList.remove(
+                            "hidden"
+                        );
+
+                    };
+
+
+                reader.readAsDataURL(
+                    file
+                );
+
+            }
+        );
+
+
+        // --------------------------------------------------
+        // Prediction Form
+        // --------------------------------------------------
+
+        form.addEventListener(
+            "submit",
+            async function (event) {
+
+                // Prevent normal form submission
+                event.preventDefault();
+
+
+                // Hide previous results
+                result.classList.add(
+                    "hidden"
+                );
+
+
+                // Hide previous error
+                error.classList.add(
+                    "hidden"
+                );
+
+
+                // Get selected image
+                const file =
+                    imageInput.files[0];
+
+
+                // Check whether an image was selected
+                if (!file) {
+
+                    error.textContent =
+                        "Please select an image.";
+
+
+                    error.classList.remove(
+                        "hidden"
+                    );
+
+
+                    return;
+                }
+
+
+                // --------------------------------------------------
+                // Create FormData
+                // --------------------------------------------------
+
+                const formData =
+                    new FormData();
+
+
+                formData.append(
+                    "image",
+                    file
+                );
+
+
+                // --------------------------------------------------
+                // Show Loading State
+                // --------------------------------------------------
+
+                loading.classList.remove(
+                    "hidden"
+                );
+
+
+                predictButton.disabled =
+                    true;
+
+
+                predictButton.textContent =
+                    "Predicting...";
+
+
+                try {
+
+                    // --------------------------------------------------
+                    // Send Image to Flask API
+                    // --------------------------------------------------
+
+                    const response =
+                        await fetch(
+                            "/api/predict",
+                            {
+                                method: "POST",
+                                body: formData
+                            }
+                        );
+
+
+                    // Convert response to JSON
+                    const data =
+                        await response.json();
+
+
+                    // Display API response in browser console
+                    console.log(
+                        "API response:",
+                        data
+                    );
+
+
+                    // --------------------------------------------------
+                    // Handle Backend Errors
+                    // --------------------------------------------------
+
+                    if (!response.ok) {
+
+                        throw new Error(
+                            data.error ||
+                            "Prediction failed."
+                        );
+
+                    }
+
+
+                    // --------------------------------------------------
+                    // Validate API Response
+                    // --------------------------------------------------
+
+                    if (
+                        !data.predictions ||
+                        !Array.isArray(
+                            data.predictions
+                        )
+                    ) {
+
+                        throw new Error(
+                            data.error ||
+                            "Invalid prediction response from server."
+                        );
+
+                    }
+
+
+                    const predictions =
+                        data.predictions;
+
+
+                    // Make sure at least one prediction exists
+                    if (
+                        predictions.length === 0
+                    ) {
+
+                        throw new Error(
+                            "The model returned no predictions."
+                        );
+
+                    }
+
+
+                    // --------------------------------------------------
+                    // Get Best Prediction
+                    // --------------------------------------------------
+
+                    const bestPrediction =
+                        predictions[0];
+
+
+                    // Display predicted class
+                    document.getElementById(
+                        "prediction"
+                    ).textContent =
+                        bestPrediction.class;
+
+
+                    // Display confidence
+                    document.getElementById(
+                        "confidence"
+                    ).textContent =
+                        `Confidence: ${
+                            (
+                                bestPrediction.confidence *
+                                100
+                            ).toFixed(2)
+                        }%`;
+
+
+                    // --------------------------------------------------
+                    // Display Top 3 Predictions
+                    // --------------------------------------------------
+
+                    const topPredictions =
+                        document.getElementById(
+                            "topPredictions"
+                        );
+
+
+                    // Clear old predictions
+                    topPredictions.innerHTML =
+                        "";
+
+
+                    // Loop through predictions
+                    predictions.forEach(
+                        function (
+                            item,
+                            index
+                        ) {
+
+                            const row =
+                                document.createElement(
+                                    "div"
+                                );
+
+
+                            row.className =
+                                "prediction-row";
+
+
+                            const percentage =
+                                (
+                                    item.confidence *
+                                    100
+                                ).toFixed(2);
+
+
+                            row.innerHTML = `
+                                <span>
+                                    ${index + 1}. ${item.class}
+                                </span>
+
+                                <span>
+                                    ${percentage}%
+                                </span>
+                            `;
+
+
+                            topPredictions.appendChild(
+                                row
+                            );
+
+                        }
+                    );
+
+
+                    // --------------------------------------------------
+                    // Show Prediction Result
+                    // --------------------------------------------------
+
+                    result.classList.remove(
+                        "hidden"
+                    );
+
+
+                } catch (err) {
+
+                    // --------------------------------------------------
+                    // Handle Errors
+                    // --------------------------------------------------
+
+                    console.error(
+                        "Prediction error:",
+                        err
+                    );
+
+
+                    error.textContent =
+                        err.message;
+
+
+                    error.classList.remove(
+                        "hidden"
+                    );
+
+
+                } finally {
+
+                    // --------------------------------------------------
+                    // Reset Loading State
+                    // --------------------------------------------------
+
+                    loading.classList.add(
+                        "hidden"
+                    );
+
+
+                    predictButton.disabled =
+                        false;
+
+
+                    predictButton.textContent =
+                        "Predict Image";
+
+                }
+
+            }
+        );
+
+    </script>
+
+</body>
+
+</html>
